@@ -14,6 +14,7 @@ from botocore.exceptions import ClientError
 from ustorage.bases import BaseStorage
 from ustorage.utils import files
 from ustorage.utils import drop_none_values
+from ustorage.utils import CaseInsensitiveDict
 
 log = logging.getLogger(__name__)
 
@@ -81,11 +82,19 @@ class S3Storage(BaseStorage):
         obj = self.bucket.Object(name).get()
         return obj['Body'].read()
 
-    def write(self, name, content):
+    def write(self, name, content, metadata=None):
+        metadata = CaseInsensitiveDict(metadata)
+
+        if 'Content-Type' not in metadata:
+            metadata.update({
+                'Content-Type': files.mime(name)
+            })
+
         return self.bucket.put_object(**drop_none_values(dict(
             Key=name,
             Body=self.as_binary(content),
-            ContentType=files.mime(name),
+            ContentType=metadata.pop('Content-Type', None),
+            Metadata=dict(drop_none_values(metadata)),
         )))
 
     def delete(self, name):
