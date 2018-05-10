@@ -24,6 +24,6 @@ setup(
     ],
     extras_require={
         's3': 'boto3>=1.4.5',
-    }
-    zip_safe=False
+    },
+    zip_safe=False,
 )
