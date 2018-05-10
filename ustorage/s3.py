@@ -11,8 +11,9 @@ import boto3
 
 from botocore.exceptions import ClientError
 
-from ustorage import BaseStorage
+from ustorage.bases import BaseStorage
 from ustorage.utils import files
+from ustorage.utils import drop_none_values
 
 log = logging.getLogger(__name__)
 
@@ -58,16 +59,16 @@ class S3Storage(BaseStorage):
         except self.s3.meta.client.exceptions.BucketAlreadyOwnedByYou:
             pass
 
-    def exists(self, filename):
+    def exists(self, name):
         try:
-            self.bucket.Object(filename).load()
+            self.bucket.Object(name).load()
         except ClientError:
             return False
         return True
 
     @contextmanager
-    def open(self, filename, mode='r', encoding='utf8'):
-        obj = self.bucket.Object(filename)
+    def open(self, name, mode='r', encoding='utf8'):
+        obj = self.bucket.Object(name)
         if 'r' in mode:
             f = obj.get()['Body']
             yield f if 'b' in mode else codecs.getreader(encoding)(f)
@@ -76,25 +77,25 @@ class S3Storage(BaseStorage):
             yield f
             obj.put(Body=f.getvalue())
 
-    def read(self, filename):
-        obj = self.bucket.Object(filename).get()
+    def read(self, name):
+        obj = self.bucket.Object(name).get()
         return obj['Body'].read()
 
-    def write(self, filename, content):
-        return self.bucket.put_object(
-            Key=filename,
+    def write(self, name, content):
+        return self.bucket.put_object(**drop_none_values(dict(
+            Key=name,
             Body=self.as_binary(content),
-            ContentType=files.mime(filename),
-        )
+            ContentType=files.mime(name),
+        )))
 
-    def delete(self, filename):
-        for obj in self.bucket.objects.filter(Prefix=filename):
+    def delete(self, name):
+        for obj in self.bucket.objects.filter(Prefix=name):
             obj.delete()
 
-    def copy(self, filename, target):
+    def copy(self, name, target):
         src = {
             'Bucket': self.bucket.name,
-            'Key': filename,
+            'Key': name,
         }
         self.bucket.copy(src, target)
 
@@ -102,9 +103,9 @@ class S3Storage(BaseStorage):
         for f in self.bucket.objects.all():
             yield f.key
 
-    def get_metadata(self, filename):
+    def get_metadata(self, name):
         '''Fetch all availabe metadata'''
-        obj = self.bucket.Object(filename)
+        obj = self.bucket.Object(name)
         checksum = 'md5:{0}'.format(obj.e_tag[1:-1])
         mime = obj.content_type.split(';', 1)[0] if obj.content_type else None
         return {
