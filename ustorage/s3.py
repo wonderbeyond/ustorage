@@ -19,6 +19,18 @@ from ustorage.utils import CaseInsensitiveDict
 log = logging.getLogger(__name__)
 
 
+def _extract_metadata(obj):
+    '''Extract metadata from s3 object'''
+    checksum = 'md5:{0}'.format(obj.e_tag[1:-1])
+    mime = obj.content_type.split(';', 1)[0] if obj.content_type else None
+    return {
+        'checksum': checksum,
+        'size': obj.content_length,
+        'mime': mime,
+        'modified': obj.last_modified,
+    }
+
+
 class S3Storage(BaseStorage):
     '''
     An Amazon S3 Backend (compatible with any S3-like API)
@@ -66,6 +78,11 @@ class S3Storage(BaseStorage):
         except ClientError:
             return False
         return True
+
+    def get(self, name):
+        """Return a pair of body+metadata"""
+        obj = self.bucket.Object(name)
+        return (obj.get()['Body'].read(), _extract_metadata(obj))
 
     @contextmanager
     def open(self, name, mode='r', encoding='utf8'):
@@ -115,11 +132,4 @@ class S3Storage(BaseStorage):
     def get_metadata(self, name):
         '''Fetch all availabe metadata'''
         obj = self.bucket.Object(name)
-        checksum = 'md5:{0}'.format(obj.e_tag[1:-1])
-        mime = obj.content_type.split(';', 1)[0] if obj.content_type else None
-        return {
-            'checksum': checksum,
-            'size': obj.content_length,
-            'mime': mime,
-            'modified': obj.last_modified,
-        }
+        return _extract_metadata(obj)
