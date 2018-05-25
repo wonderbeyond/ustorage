@@ -23,7 +23,7 @@ setup(
         'six',
     ],
     extras_require={
-        's3': 'boto3>=1.4.5',
+        's3': 'boto3==1.*',
     },
     zip_safe=False,
 )

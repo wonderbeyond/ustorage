@@ -133,3 +133,11 @@ class S3Storage(BaseStorage):
         '''Fetch all availabe metadata'''
         obj = self.bucket.Object(name)
         return _extract_metadata(obj)
+
+    def get_url(self, name, parameters=None, expire=3600):
+        params = parameters.copy() if parameters else {}
+        params['Bucket'] = self.bucket.name
+        params['Key'] = name
+        return self.s3.meta.client.generate_presigned_url(
+            'get_object', Params=params, ExpiresIn=expire
+        )
