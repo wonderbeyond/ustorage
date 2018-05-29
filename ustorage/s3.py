@@ -65,6 +65,7 @@ class S3Storage(BaseStorage):
                                        aws_access_key_id=config.access_key,
                                        aws_secret_access_key=config.secret_key)
         self.bucket = self.s3.Bucket(config.bucket)
+        self.backend_exceptions = self.s3.meta.client.exceptions
 
     def create_bucket(self):
         try:
