@@ -23,12 +23,14 @@ def _extract_metadata(obj):
     '''Extract metadata from s3 object'''
     checksum = 'md5:{0}'.format(obj.e_tag[1:-1])
     mime = obj.content_type.split(';', 1)[0] if obj.content_type else None
-    return {
+    meta = {
         'checksum': checksum,
         'size': obj.content_length,
         'mime': mime,
         'modified': obj.last_modified,
     }
+    meta.update(obj.metadata)
+    return meta
 
 
 class S3Storage(BaseStorage):
@@ -102,6 +104,10 @@ class S3Storage(BaseStorage):
 
     def write(self, name, content, metadata=None):
         metadata = CaseInsensitiveDict(metadata)
+
+        text_type = type('')
+        for k, v in metadata.items():
+            metadata[k] = text_type(v)
 
         if 'Content-Type' not in metadata:
             metadata.update({
