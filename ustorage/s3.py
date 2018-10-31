@@ -2,6 +2,7 @@
 from __future__ import unicode_literals
 
 import codecs
+import tempfile
 import io
 import logging
 
@@ -89,14 +90,30 @@ class S3Storage(BaseStorage):
 
     @contextmanager
     def open(self, name, mode='r', encoding='utf8'):
+        """
+        Returns a file-like object.
+
+        Example:
+
+            with storage.open('test.json', 'w') as f:
+                json.dump({'a': 1}, f)
+
+            with storage.open('test.json') as f:
+                print(json.load(f))
+
+        :param mode: gives "b" flag if of binary object,
+                     gives "w" for writting.
+        """
         obj = self.bucket.Object(name)
         if 'r' in mode:
             f = obj.get()['Body']
             yield f if 'b' in mode else codecs.getreader(encoding)(f)
         else:  # mode == 'w'
-            f = io.BytesIO() if 'b' in mode else io.StringIO()
+            f = tempfile.SpooledTemporaryFile()
             yield f
-            obj.put(Body=f.getvalue())
+            f.seek(0)
+            obj.put(Body=f.read())
+            f.close()
 
     def read(self, name):
         obj = self.bucket.Object(name).get()
