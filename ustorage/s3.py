@@ -149,8 +149,8 @@ class S3Storage(BaseStorage):
         }
         self.bucket.copy(src, target)
 
-    def list_files(self):
-        for f in self.bucket.objects.all():
+    def list_files(self, prefix=''):
+        for f in self.bucket.objects.filter(Prefix=prefix):
             yield f.key
 
     def get_metadata(self, name):
