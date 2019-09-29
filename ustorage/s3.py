@@ -12,6 +12,7 @@ import boto3
 
 from botocore.exceptions import ClientError
 
+from ustorage.exceptions import FileNotFound
 from ustorage.bases import BaseStorage
 from ustorage.utils import files
 from ustorage.utils import drop_none_values
@@ -20,10 +21,24 @@ from ustorage.utils import CaseInsensitiveDict
 log = logging.getLogger(__name__)
 
 
+def _is_no_such_key_error(e):
+    if isinstance(e, ClientError):
+        if e.__class__.__name__ == 'NoSuchKey':
+            return True
+        if 'not found' in e.message.lower():
+            return True
+    return False
+
+
 def _extract_metadata(obj):
     '''Extract metadata from s3 object'''
-    checksum = 'md5:{0}'.format(obj.e_tag[1:-1])
-    mime = obj.content_type.split(';', 1)[0] if obj.content_type else None
+    try:
+        checksum = 'md5:{0}'.format(obj.e_tag[1:-1])
+        mime = obj.content_type.split(';', 1)[0] if obj.content_type else None
+    except ClientError as e:
+        if _is_no_such_key_error(e):
+            raise FileNotFound("{} not found.".format(obj.key))
+        raise
     meta = {
         'checksum': checksum,
         'size': obj.content_length,
@@ -79,14 +94,21 @@ class S3Storage(BaseStorage):
     def exists(self, name):
         try:
             self.bucket.Object(name).load()
-        except ClientError:
-            return False
+        except ClientError as e:
+            if _is_no_such_key_error(e):
+                return False
+            raise
         return True
 
     def get(self, name):
         """Return a pair of body+metadata"""
         obj = self.bucket.Object(name)
-        return (obj.get()['Body'].read(), _extract_metadata(obj))
+        try:
+            return (obj.get()['Body'].read(), _extract_metadata(obj))
+        except ClientError as e:
+            if _is_no_such_key_error(e):
+                raise FileNotFound("{} not found.".format(name))
+            raise
 
     @contextmanager
     def open(self, name, mode='r', encoding='utf8'):
@@ -106,7 +128,12 @@ class S3Storage(BaseStorage):
         """
         obj = self.bucket.Object(name)
         if 'r' in mode:
-            f = obj.get()['Body']
+            try:
+                f = obj.get()['Body']
+            except ClientError as e:
+                if _is_no_such_key_error(e):
+                    raise FileNotFound("{} not found.".format(name))
+                raise
             yield f if 'b' in mode else codecs.getreader(encoding)(f)
         else:  # mode == 'w'
             f = tempfile.SpooledTemporaryFile()
@@ -116,7 +143,12 @@ class S3Storage(BaseStorage):
             f.close()
 
     def read(self, name):
-        obj = self.bucket.Object(name).get()
+        try:
+            obj = self.bucket.Object(name).get()
+        except ClientError as e:
+            if _is_no_such_key_error(e):
+                raise FileNotFound("{} not found.".format(name))
+            raise
         return obj['Body'].read()
 
     def write(self, name, content, metadata=None):
