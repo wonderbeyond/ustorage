@@ -32,4 +32,8 @@ fs.write('hello.txt', 'Hello, World!')
 fs.exists('hello.txt')
 fs.read('hello.txt')
 fs.delete('hello.txt')
+
+# You can also write binary file
+with open('test.zip', 'rb') as f:
+    fs.write('test.zip', f.read())
 ```
