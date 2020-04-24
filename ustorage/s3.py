@@ -25,6 +25,8 @@ def _is_no_such_key_error(e):
     if isinstance(e, ClientError):
         if e.__class__.__name__ == 'NoSuchKey':
             return True
+        if 'not found' in str(e).lower():
+            return True
         if 'not found' in e.message.lower():
             return True
     return False
